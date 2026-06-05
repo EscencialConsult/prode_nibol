@@ -144,8 +144,7 @@ function manejarSesionExpirada() {
   try { sessionStorage.removeItem('prode_user') } catch (e) {}
   const path = window.location.pathname
   const yaEnLogin =
-    path === '/login' || path === '/' || path === '/home' ||
-    path.startsWith('/forgot-password') || path.startsWith('/reset-password')
+    path === '/login' || path === '/' || path === '/home'
   if (!yaEnLogin) {
     mostrarAvisoSesionExpirada()
     setTimeout(() => { window.location.href = '/login' }, 1200)
@@ -360,50 +359,16 @@ const auth = {
     }
   },
 
-  // Recuperación de contraseña (flujo Supabase nativo).
-  resetSolicitar: async (email) => {
-    const redirectTo = `${window.location.origin}/reset-password`
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      email.trim().toLowerCase(),
-      { redirectTo }
-    )
-    // Mensaje genérico (no revela si el email existe o no)
-    return {
-      ok: true,
-      message: 'Si el email está registrado, te enviamos un correo con instrucciones para restablecer tu contraseña.',
-    }
-  },
-
-  /**
-   * En Supabase, cuando el usuario clickea el link del email de reset,
-   * llega a /reset-password con un fragmento que contiene los tokens.
-   * Supabase los detecta automáticamente (gracias a detectSessionInUrl)
-   * y crea una sesión temporal.
-   *
-   * Esta función simplemente verifica que haya una sesión activa
-   * "tipo recovery" en este momento.
-   */
-  resetValidar: async (_token) => {
-    const { data, error } = await supabase.auth.getSession()
-    if (error || !data.session) {
-      throw new Error('El link de recuperación no es válido o ya expiró. Pedí uno nuevo desde la pantalla de login.')
-    }
-    return {
-      ok: true,
-      email: data.session.user.email,
-      nombre: data.session.user.user_metadata?.nombre || '',
-    }
-  },
-
-  resetConfirmar: async (_token, password) => {
+  // Cambio de contraseña del usuario ya logueado.
+  // Usa la sesión activa (Supabase sabe de quién es) y NO cierra sesión:
+  // el usuario sigue navegando con la nueva contraseña ya aplicada.
+  actualizarPassword: async (password) => {
     if (!password || password.length < 6) {
       throw new Error('La contraseña debe tener al menos 6 caracteres.')
     }
     const { error } = await supabase.auth.updateUser({ password })
     if (error) throw new Error(traducirErrorAuth(error))
-    // Cerrar sesión: el usuario debe loguear con la nueva password
-    await supabase.auth.signOut()
-    return { ok: true, message: 'Tu contraseña se actualizó correctamente. Ya podés iniciar sesión.' }
+    return { ok: true, message: 'Contraseña actualizada correctamente' }
   },
 }
 

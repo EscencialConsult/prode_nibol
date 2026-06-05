@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.jsx'
+import ChangePasswordModal from '../components/user/ChangePasswordModal.jsx'
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg> },
@@ -108,6 +109,27 @@ export default function AppShell({ children }) {
   const navigate = useNavigate()
   const [mob, setMob] = useState(false)
   const [logoutState, setLogoutState] = useState('idle')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+
+  // Estilo compartido de los ítems del menú de usuario
+  const menuItemStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '.6rem',
+    width: '100%',
+    padding: '.6rem .7rem',
+    borderRadius: 8,
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    fontFamily: "'DM Sans',sans-serif",
+    fontSize: '.82rem',
+    fontWeight: 600,
+    color: '#0c182b',
+    textAlign: 'left',
+    transition: 'background .14s',
+  }
 
   const esAdmin = isAdmin || user?.rol === 'admin' || user?.es_admin === true || user?.tipo_usuario === 'admin'
 
@@ -317,212 +339,171 @@ export default function AppShell({ children }) {
                 En vivo
               </span>
 
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '.42rem',
-                  padding: '.28rem .62rem .28rem .28rem',
-                  borderRadius: 99,
-                  background: 'rgba(255,255,255,.07)',
-                  border: '1px solid rgba(255,255,255,.1)',
-                }}
-              >
-                <div
-                  style={{
-                    width: 27,
-                    height: 27,
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg,#ebc32b,#c99f16)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: "'Bebas Neue',sans-serif",
-                    fontSize: '.88rem',
-                    color: '#05090f',
-                  }}
-                >
-                  {initials(user?.nombre || user?.name || 'U')}
-                </div>
-
-                <span
-                  style={{
-                    fontSize: '.78rem',
-                    fontWeight: 600,
-                    color: 'rgba(255,255,255,.72)',
-                    maxWidth: 84,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {user?.nombre || user?.name || 'Usuario'}
-                </span>
-              </div>
-
+              {/* Menú de usuario: el chip es clickeable y abre el desplegable */}
               <div style={{ position: 'relative' }}>
                 <button
-                  onClick={logoutState === 'idle' ? pedirConfirmacion : undefined}
-                  disabled={logoutState === 'logging' || logoutState === 'redirect'}
+                  type="button"
+                  onClick={() => setMenuOpen(v => !v)}
+                  aria-haspopup="true"
+                  aria-expanded={menuOpen}
                   style={{
-                    background: logoutState === 'logging' ? 'rgba(255,77,109,.12)' : 'transparent',
-                    border: `1px solid ${logoutState === 'logging' ? 'rgba(255,77,109,.4)' : 'rgba(255,255,255,.1)'}`,
-                    borderRadius: 7,
-                    padding: '.3rem .68rem',
-                    fontSize: '.74rem',
-                    fontWeight: 600,
-                    color: logoutState === 'logging' ? '#ff4d6d' : 'rgba(255,255,255,.35)',
-                    cursor: logoutState === 'logging' || logoutState === 'redirect' ? 'wait' : 'pointer',
-                    transition: 'all .16s',
-                    display: 'inline-flex',
+                    display: 'flex',
                     alignItems: 'center',
-                    gap: '.4rem',
-                    minWidth: 64,
-                    justifyContent: 'center',
+                    gap: '.42rem',
+                    padding: '.28rem .5rem .28rem .28rem',
+                    borderRadius: 99,
+                    background: menuOpen ? 'rgba(235,195,43,.12)' : 'rgba(255,255,255,.07)',
+                    border: `1px solid ${menuOpen ? 'rgba(235,195,43,.35)' : 'rgba(255,255,255,.1)'}`,
+                    cursor: 'pointer',
+                    transition: 'all .16s',
                   }}
-                  onMouseEnter={e => {
-                    if (logoutState === 'idle') {
-                      e.currentTarget.style.borderColor = 'rgba(255,77,109,.45)'
-                      e.currentTarget.style.color = '#ff4d6d'
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (logoutState === 'idle') {
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'
-                      e.currentTarget.style.color = 'rgba(255,255,255,.35)'
-                    }
-                  }}
+                  onMouseEnter={e => { if (!menuOpen) e.currentTarget.style.background = 'rgba(255,255,255,.12)' }}
+                  onMouseLeave={e => { if (!menuOpen) e.currentTarget.style.background = 'rgba(255,255,255,.07)' }}
                 >
-                  {logoutState === 'logging' ? (
-                    <>
-                      <svg className="spin-out" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                      </svg>
-                      Saliendo...
-                    </>
-                  ) : (
-                    'Salir'
-                  )}
+                  <div
+                    style={{
+                      width: 27,
+                      height: 27,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg,#ebc32b,#c99f16)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontFamily: "'Bebas Neue',sans-serif",
+                      fontSize: '.88rem',
+                      color: '#05090f',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {initials(user?.nombre || user?.name || 'U')}
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: '.78rem',
+                      fontWeight: 600,
+                      color: 'rgba(255,255,255,.72)',
+                      maxWidth: 84,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {user?.nombre || user?.name || 'Usuario'}
+                  </span>
+
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ flexShrink: 0, transition: 'transform .18s', transform: menuOpen ? 'rotate(180deg)' : 'none' }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
                 </button>
 
-                {logoutState === 'confirm' && (
-                  <>
-                    <div
-                      onClick={cancelarLogout}
-                      style={{
-                        position: 'fixed',
-                        inset: 0,
-                        zIndex: 60,
-                        background: 'transparent',
-                      }}
-                    />
+                {/* Capa para cerrar al hacer clic afuera (menú o confirmación) */}
+                {(menuOpen || logoutState === 'confirm') && (
+                  <div
+                    onClick={() => { setMenuOpen(false); if (logoutState === 'confirm') cancelarLogout() }}
+                    style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'transparent' }}
+                  />
+                )}
 
-                    <div
-                      className="pop-in"
-                      style={{
-                        position: 'absolute',
-                        top: 'calc(100% + 8px)',
-                        right: 0,
-                        zIndex: 61,
-                        minWidth: 240,
-                        background: '#fff',
-                        borderRadius: 12,
-                        boxShadow: '0 12px 32px rgba(12,24,43,.22), 0 0 0 1px rgba(12,24,43,.06)',
-                        padding: '.85rem .95rem',
-                        border: '1px solid #f0eadb',
-                      }}
+                {/* Menú desplegable */}
+                {menuOpen && logoutState !== 'confirm' && (
+                  <div
+                    className="pop-in"
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      zIndex: 61,
+                      minWidth: 210,
+                      background: '#fff',
+                      borderRadius: 12,
+                      boxShadow: '0 12px 32px rgba(12,24,43,.22), 0 0 0 1px rgba(12,24,43,.06)',
+                      padding: '.4rem',
+                      border: '1px solid #f0eadb',
+                    }}
+                  >
+                    <div style={{ position: 'absolute', top: -6, right: 22, width: 12, height: 12, background: '#fff', transform: 'rotate(45deg)', borderTop: '1px solid #f0eadb', borderLeft: '1px solid #f0eadb' }} />
+
+                    <button
+                      type="button"
+                      onClick={() => { setMenuOpen(false); setShowPasswordModal(true) }}
+                      style={menuItemStyle}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(235,195,43,.1)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
                     >
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: -6,
-                          right: 22,
-                          width: 12,
-                          height: 12,
-                          background: '#fff',
-                          transform: 'rotate(45deg)',
-                          borderTop: '1px solid #f0eadb',
-                          borderLeft: '1px solid #f0eadb',
-                        }}
-                      />
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c99f16" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      Cambiar contraseña
+                    </button>
 
-                      <p
-                        style={{
-                          fontFamily: "'Bebas Neue',sans-serif",
-                          fontSize: '1rem',
-                          color: '#0c182b',
-                          margin: '0 0 .15rem',
-                          letterSpacing: '.02em',
-                        }}
+                    <div style={{ height: 1, background: '#f0eadb', margin: '.3rem .2rem' }} />
+
+                    <button
+                      type="button"
+                      onClick={() => { setMenuOpen(false); pedirConfirmacion() }}
+                      style={{ ...menuItemStyle, color: '#e0354f' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(224,53,79,.08)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e0354f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                      Cerrar sesión
+                    </button>
+                  </div>
+                )}
+
+                {/* Confirmación de cierre de sesión (misma lógica de antes) */}
+                {logoutState === 'confirm' && (
+                  <div
+                    className="pop-in"
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      zIndex: 61,
+                      minWidth: 240,
+                      background: '#fff',
+                      borderRadius: 12,
+                      boxShadow: '0 12px 32px rgba(12,24,43,.22), 0 0 0 1px rgba(12,24,43,.06)',
+                      padding: '.85rem .95rem',
+                      border: '1px solid #f0eadb',
+                    }}
+                  >
+                    <div style={{ position: 'absolute', top: -6, right: 22, width: 12, height: 12, background: '#fff', transform: 'rotate(45deg)', borderTop: '1px solid #f0eadb', borderLeft: '1px solid #f0eadb' }} />
+
+                    <p style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: '1rem', color: '#0c182b', margin: '0 0 .15rem', letterSpacing: '.02em' }}>
+                      ¿Cerrar sesión?
+                    </p>
+                    <p style={{ fontSize: '.76rem', color: '#5f6e8a', margin: '0 0 .85rem', lineHeight: 1.4 }}>
+                      Vas a volver a la pantalla de inicio.
+                    </p>
+
+                    <div style={{ display: 'flex', gap: '.45rem', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={cancelarLogout}
+                        style={{ background: 'transparent', border: '1px solid #f0eadb', borderRadius: 7, padding: '.4rem .8rem', fontSize: '.74rem', fontWeight: 600, color: '#5f6e8a', cursor: 'pointer', transition: 'all .14s' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#0c182b'; e.currentTarget.style.color = '#0c182b' }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#f0eadb'; e.currentTarget.style.color = '#5f6e8a' }}
                       >
-                        ¿Cerrar sesión?
-                      </p>
+                        Cancelar
+                      </button>
 
-                      <p
-                        style={{
-                          fontSize: '.76rem',
-                          color: '#5f6e8a',
-                          margin: '0 0 .85rem',
-                          lineHeight: 1.4,
-                        }}
+                      <button
+                        onClick={confirmarLogout}
+                        style={{ background: '#ff4d6d', border: '1px solid #ff4d6d', borderRadius: 7, padding: '.4rem .9rem', fontSize: '.74rem', fontWeight: 700, color: '#fff', cursor: 'pointer', transition: 'all .14s', letterSpacing: '.02em' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#e0354f'; e.currentTarget.style.borderColor = '#e0354f' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#ff4d6d'; e.currentTarget.style.borderColor = '#ff4d6d' }}
                       >
-                        Vas a volver a la pantalla de inicio.
-                      </p>
-
-                      <div style={{ display: 'flex', gap: '.45rem', justifyContent: 'flex-end' }}>
-                        <button
-                          onClick={cancelarLogout}
-                          style={{
-                            background: 'transparent',
-                            border: '1px solid #f0eadb',
-                            borderRadius: 7,
-                            padding: '.4rem .8rem',
-                            fontSize: '.74rem',
-                            fontWeight: 600,
-                            color: '#5f6e8a',
-                            cursor: 'pointer',
-                            transition: 'all .14s',
-                          }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.borderColor = '#0c182b'
-                            e.currentTarget.style.color = '#0c182b'
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.borderColor = '#f0eadb'
-                            e.currentTarget.style.color = '#5f6e8a'
-                          }}
-                        >
-                          Cancelar
-                        </button>
-
-                        <button
-                          onClick={confirmarLogout}
-                          style={{
-                            background: '#ff4d6d',
-                            border: '1px solid #ff4d6d',
-                            borderRadius: 7,
-                            padding: '.4rem .9rem',
-                            fontSize: '.74rem',
-                            fontWeight: 700,
-                            color: '#fff',
-                            cursor: 'pointer',
-                            transition: 'all .14s',
-                            letterSpacing: '.02em',
-                          }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.background = '#e0354f'
-                            e.currentTarget.style.borderColor = '#e0354f'
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.background = '#ff4d6d'
-                            e.currentTarget.style.borderColor = '#ff4d6d'
-                          }}
-                        >
-                          Sí, salir
-                        </button>
-                      </div>
+                        Sí, salir
+                      </button>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
 
@@ -722,6 +703,10 @@ export default function AppShell({ children }) {
             </p>
           </div>
         </div>
+      )}
+
+      {showPasswordModal && (
+        <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />
       )}
     </>
   )
