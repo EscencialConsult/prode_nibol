@@ -743,8 +743,6 @@ const predicciones = {
     let rankingArr = ranking || []
 
     // 3) Normalizar el ranking grupal a la estructura que espera el frontend
-    // El frontend lee { user_id, nombre, puntos_totales, posicion, ... }
-    // En grupal: mapeamos area_id → user_id, area_nombre → nombre
     if (esGrupal) {
       rankingArr = rankingArr.map(r => ({
         user_id: r.area_id,
@@ -762,6 +760,17 @@ const predicciones = {
         es_grupal: true,
       }))
     }
+
+    // Recomputar posiciones en el frontend basado en puntos_totales reales
+    // (DENSE_RANK: empates comparten posición, la siguiente posición no salta)
+    rankingArr.sort((a, b) => (b.puntos_totales || 0) - (a.puntos_totales || 0))
+    let currentPos = 1
+    rankingArr.forEach((r, i) => {
+      if (i > 0 && (r.puntos_totales || 0) < (rankingArr[i - 1].puntos_totales || 0)) {
+        currentPos = i + 1
+      }
+      r.posicion = currentPos
+    })
 
     const top = rankingArr.slice(0, limit)
 

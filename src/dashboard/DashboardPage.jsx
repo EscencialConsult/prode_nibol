@@ -4,7 +4,7 @@
  * ✅ INTEGRADO CON PredictModal
  * ✅ INTEGRADO CON Loading OVERLAY
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AppShell from '../dashboard/AppShell.jsx'
 import { useAuth } from '../hooks/useAuth.jsx'
 import { useBets } from '../hooks/useBets.jsx'
@@ -12,6 +12,7 @@ import { isBetOpen, timeLeft } from '../utils/index.js'
 import { Link } from 'react-router-dom'
 import PredictModal from '../components/user/PredictModal.jsx'
 import Loading from '../hooks/Loading.jsx'
+import sheetsApi from '../services/sheetsApi.js'
 
 function StatCard({ label, value, sub, icon, gold = false, live = false }) {
   const accentColor = live ? '#e03252' : gold ? '#c99f16' : '#425b8b'
@@ -152,44 +153,205 @@ function SectionHead({ title, to, cta }) {
   )
 }
 
+function AdminDashboard({ bets, matches, loading, user }) {
+  const totalBets    = bets.length
+  const activeBets   = bets.filter(b => isBetOpen(b)).length
+  const uniqueMatchIds = new Set(bets.flatMap(b => b.partidos?.map(p => p.id) || []))
+  const totalFixture = uniqueMatchIds.size
+  const liveMatches  = matches.filter(m => m.estado === 'en_vivo').length
+  const nombre       = (user?.nombre || '').split(' ')[0].toUpperCase()
+
+  const adminStats = [
+    {
+      label: 'Total Apuestas', value: loading ? '—' : totalBets, sub: 'Configuradas en el sistema',
+      icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
+    },
+    {
+      label: 'Apuestas Activas', value: loading ? '—' : activeBets, sub: 'Disponibles para usuarios',
+      icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>,
+    },
+    {
+      label: 'Partidos en Fixture', value: loading ? '—' : totalFixture, sub: 'Registrados para pronóstico',
+      icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+    },
+    {
+      label: 'En Vivo', value: loading ? '—' : liveMatches, sub: 'Partidos ahora mismo', live: liveMatches > 0,
+      icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49"/></svg>,
+    },
+  ]
+
+  const quickLinks = [
+    { to: '/partidos',     label: 'Fixture',       sub: 'Partidos del Mundial',   icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+    { to: '/ranking',      label: 'Ranking',        sub: 'Tabla de posiciones',    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> },
+    { to: '/manual-admin', label: 'Manual Admin',   sub: 'Guía de administración', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> },
+  ]
+
+  return (
+    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '2rem 1.5rem 3rem' }}>
+
+      {/* Banner de bienvenida */}
+      <div className="rounded-2xl p-6 md:p-8 mb-8 relative overflow-hidden animate-fade-in"
+        style={{ background: '#0c182b', border: '1px solid rgba(235,195,43,.2)', boxShadow: '0 12px 40px rgba(12,24,43,.15)' }}>
+        <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
+          style={{ background: 'radial-gradient(circle at 80% 20%, rgba(235,195,43,.12), transparent 65%)' }} />
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-5">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#ebc32b' }} />
+              <span className="font-body font-bold text-xs uppercase tracking-widest" style={{ color: 'rgba(235,195,43,.7)' }}>
+                Panel de Administración
+              </span>
+            </div>
+            <h1 className="font-display leading-none mb-1" style={{ fontSize: 'clamp(2.2rem,6vw,3.5rem)', letterSpacing: '.02em' }}>
+              <span className="text-white">HOLA, </span>
+              <span style={{ color: '#ebc32b' }}>{nombre}</span>
+            </h1>
+            <p className="font-body text-sm" style={{ color: 'rgba(255,255,255,.45)' }}>
+              Gestioná apuestas, usuarios y resultados del Mundial 2026.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-fade-in">
+        {adminStats.map(({ label, value, sub, icon, live }) => (
+          <StatCard key={label} label={label} value={value} sub={sub} icon={icon} live={!!live} />
+        ))}
+      </div>
+
+      {/* Main grid */}
+      <div className="grid lg:grid-cols-3 gap-6 animate-fade-in delay-1">
+
+        {/* Panel de administración */}
+        <div className="lg:col-span-2">
+          <SectionHead title="PANEL DE ADMINISTRACIÓN" />
+          <div
+            className="rounded-2xl p-6 md:p-8 relative overflow-hidden"
+            style={{ background: '#0c182b', border: '1px solid rgba(235,195,43,.2)', boxShadow: '0 12px 40px rgba(12,24,43,.15)' }}
+          >
+            <div className="absolute top-0 right-0 w-72 h-72 pointer-events-none"
+              style={{ background: 'radial-gradient(circle at 80% 20%, rgba(235,195,43,.1), transparent 65%)' }} />
+            <div className="relative z-10">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-body font-bold text-xs uppercase tracking-widest mb-4"
+                style={{ background: 'rgba(235,195,43,.12)', color: '#ebc32b', border: '1px solid rgba(235,195,43,.25)' }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#ebc32b' }} />
+                Administrador
+              </span>
+              <p className="font-body text-sm leading-relaxed mb-6" style={{ color: 'rgba(255,255,255,.65)', maxWidth: 520 }}>
+                Como administrador, tenés acceso completo para gestionar los partidos, publicar apuestas,
+                cargar los resultados reales del fixture, computar los puntajes de los participantes
+                y ver los rankings de juego.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Link to="/admin"
+                  className="inline-flex items-center gap-2 font-body font-bold text-sm px-6 py-3 rounded-full transition-all"
+                  style={{ background: '#ebc32b', color: '#05090f', boxShadow: '0 6px 20px rgba(235,195,43,.3)', textDecoration: 'none' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#f5d75a'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#ebc32b'; e.currentTarget.style.transform = '' }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                  </svg>
+                  Acceder al panel admin
+                </Link>
+                <Link to="/ranking"
+                  className="inline-flex items-center gap-2 font-body font-semibold text-sm px-6 py-3 rounded-full transition-all"
+                  style={{ border: '1.5px solid rgba(255,255,255,.2)', color: 'rgba(255,255,255,.7)', textDecoration: 'none' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(235,195,43,.4)'; e.currentTarget.style.color = '#ebc32b' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.2)'; e.currentTarget.style.color = 'rgba(255,255,255,.7)' }}
+                >
+                  Ver Ranking
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Accesos rápidos */}
+        <div>
+          <SectionHead title="ACCESOS RÁPIDOS" />
+          <div className="flex flex-col gap-3">
+            {quickLinks.map(({ to, label, sub, icon }) => (
+              <Link key={to} to={to}
+                className="flex items-center gap-3 p-3.5 rounded-xl transition-all group"
+                style={{ background: '#fff', border: '1px solid #f0eadb', textDecoration: 'none', boxShadow: '0 1px 0 rgba(12,24,43,.04)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#fffdf5'; e.currentTarget.style.borderColor = '#ebc32b'; e.currentTarget.style.transform = 'translateX(3px)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#f0eadb'; e.currentTarget.style.transform = '' }}
+              >
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'linear-gradient(135deg,#0c182b,#425b8b)', color: '#ebc32b' }}>
+                  {icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-body font-semibold text-sm" style={{ color: '#0c182b' }}>{label}</p>
+                  <p className="font-body text-xs" style={{ color: '#5f6e8a' }}>{sub}</p>
+                </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a8b2c4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  className="flex-shrink-0 transition-transform group-hover:translate-x-1">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
-  const { user } = useAuth()
-  const { bets, predictions, savePrediction, loading } = useBets()
-  
-  // ✅ ESTADO PARA CONTROLAR EL MODAL
+  const { user, isAdmin } = useAuth()
+  const { bets, matches, predictions, savePrediction, loading } = useBets()
+
   const [selectedBet, setSelectedBet] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [rankingStats, setRankingStats] = useState({ puntos: null, mejorPos: null })
 
   const activeBets  = bets.filter(b => isBetOpen(b))
   const liveBets    = bets.filter(b => b.partidos?.some(p => p.estado === 'en_vivo'))
   const myPredCount = Object.keys(predictions).length
   const nombre      = (user?.nombre || '').split(' ')[0].toUpperCase()
+  const esAdmin     = isAdmin || user?.rol === 'admin' || user?.es_admin === true
 
-  // ✅ FUNCIÓN PARA ABRIR EL MODAL
-  const handlePredict = (bet) => {
-    setSelectedBet(bet)
-  }
+  useEffect(() => {
+    if (esAdmin || bets.length === 0) return
+    let cancelled = false
+    async function fetchRanking() {
+      try {
+        const results = await Promise.all(
+          bets.map(b => sheetsApi.predicciones.tabla(b.id).catch(() => null))
+        )
+        if (cancelled) return
+        let totalPuntos = 0
+        let mejorPos = null
+        results.forEach(r => {
+          if (!r?.mi_posicion) return
+          totalPuntos += r.mi_posicion.puntos_totales || 0
+          const pos = r.mi_posicion.posicion
+          if (pos && (mejorPos === null || pos < mejorPos)) mejorPos = pos
+        })
+        setRankingStats({ puntos: totalPuntos, mejorPos })
+      } catch {}
+    }
+    fetchRanking()
+    return () => { cancelled = true }
+  }, [bets, esAdmin])
 
-  // ✅ FUNCIÓN PARA CERRAR EL MODAL
-  const handleCloseModal = () => {
-    setSelectedBet(null)
-  }
+  const handlePredict    = (bet) => setSelectedBet(bet)
+  const handleCloseModal = () => setSelectedBet(null)
 
-  // ✅ FUNCIÓN PARA GUARDAR PREDICCIONES (con batches de 3 en paralelo)
   const handleSubmitPredictions = async (betId, matchPredictions) => {
     setIsSubmitting(true)
-
     try {
       const BATCH_SIZE = 3
-
-      // Detectar si esta apuesta es de tipo "grupos" para incluir area_id en el payload
       const bet = bets.find(b => b.id === betId)
       const esGrupal = bet?.tipo === 'grupos'
       const areaUsuario = user?.area_id || null
 
       for (let i = 0; i < matchPredictions.length; i += BATCH_SIZE) {
         const batch = matchPredictions.slice(i, i + BATCH_SIZE)
-
         await Promise.all(
           batch.map(async (p) => {
             const payload = {
@@ -204,8 +366,6 @@ export default function DashboardPage() {
           })
         )
       }
-
-      // Cerrar modal después de guardar exitosamente
       setSelectedBet(null)
       setIsSubmitting(false)
     } catch (error) {
@@ -215,14 +375,23 @@ export default function DashboardPage() {
     }
   }
 
+  // Vista admin
+  if (esAdmin) {
+    return (
+      <AppShell>
+        {loading && bets.length === 0 && <Loading message="Cargando dashboard..." />}
+        <AdminDashboard bets={bets} matches={matches} loading={loading && bets.length === 0} user={user} />
+      </AppShell>
+    )
+  }
+
+  // Vista usuario
   return (
     <AppShell>
-      {/* ✅ LOADING OVERLAY - Se muestra ENCIMA del contenido mientras carga */}
       {loading && bets.length === 0 && (
         <Loading message="Cargando dashboard..." />
       )}
 
-      {/* ✅ CONTENIDO - Siempre se renderiza */}
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '2rem 1.5rem 3rem' }}>
 
         <div className="rounded-2xl p-6 md:p-8 mb-8 relative overflow-hidden animate-fade-in"
@@ -246,34 +415,46 @@ export default function DashboardPage() {
                   ? `Tenés ${activeBets.length} apuesta${activeBets.length > 1 ? 's' : ''} activa${activeBets.length > 1 ? 's' : ''} disponible${activeBets.length > 1 ? 's' : ''}.`
                   : 'Acá está el resumen de tu actividad en Prode Talento.'}
               </p>
-            </div>
-            <div className="flex gap-2 flex-shrink-0">
-              <Link to="/partidos"
-                className="inline-flex items-center gap-2 font-body font-bold text-sm px-5 py-3 rounded-full transition-all"
-                style={{ background: '#ebc32b', color: '#05090f', boxShadow: '0 6px 20px rgba(235,195,43,.3)', textDecoration: 'none' }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f5d75a'; e.currentTarget.style.transform = 'translateY(-1px)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#ebc32b'; e.currentTarget.style.transform = '' }}>
-                Fixture
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                </svg>
-              </Link>
-              <Link to="/ranking"
-                className="inline-flex items-center gap-2 font-body font-semibold text-sm px-5 py-3 rounded-full transition-all"
-                style={{ border: '1px solid rgba(255,255,255,.2)', color: 'rgba(255,255,255,.7)', textDecoration: 'none' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(235,195,43,.4)'; e.currentTarget.style.color = '#ebc32b' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.2)'; e.currentTarget.style.color = 'rgba(255,255,255,.7)' }}>
-                Ranking
-              </Link>
+              <div className="mt-5">
+                <p className="font-body font-bold text-xs uppercase tracking-widest mb-2.5" style={{ color: 'rgba(235,195,43,.55)' }}>
+                  Accesos rápidos
+                </p>
+                <div className="flex gap-2 flex-wrap">
+                  <Link to="/apuestas"
+                    className="inline-flex items-center gap-2 font-body font-bold text-sm px-5 py-2.5 rounded-full transition-all"
+                    style={{ background: '#ebc32b', color: '#05090f', boxShadow: '0 6px 20px rgba(235,195,43,.3)', textDecoration: 'none' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#f5d75a'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#ebc32b'; e.currentTarget.style.transform = '' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                    Ir a Apuestas
+                  </Link>
+                  <Link to="/ranking"
+                    className="inline-flex items-center gap-2 font-body font-semibold text-sm px-5 py-2.5 rounded-full transition-all"
+                    style={{ border: '1px solid rgba(255,255,255,.2)', color: 'rgba(255,255,255,.7)', textDecoration: 'none' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(235,195,43,.4)'; e.currentTarget.style.color = '#ebc32b' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.2)'; e.currentTarget.style.color = 'rgba(255,255,255,.7)' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                    Ir a Ranking
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-fade-in delay-1">
-          <StatCard label="Puntos totales" value="—" sub="Sin partidos finalizados" gold
+          <StatCard
+            label="Puntos totales"
+            value={rankingStats.puntos !== null ? rankingStats.puntos : '—'}
+            sub={rankingStats.puntos !== null ? 'Acumulado en tus apuestas' : 'Sin partidos finalizados'}
+            gold
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>}
           />
-          <StatCard label="Posición" value="—" sub="Ranking global" gold
+          <StatCard
+            label="Mejor Posición"
+            value={rankingStats.mejorPos !== null ? `#${rankingStats.mejorPos}` : '—'}
+            sub={rankingStats.mejorPos !== null ? 'Tu mejor puesto obtenido' : 'En tus apuestas'}
+            gold
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>}
           />
           <StatCard label="Predicciones" value={myPredCount || '—'} sub="Cargadas hasta ahora"
@@ -324,10 +505,11 @@ export default function DashboardPage() {
             <SectionHead title="ACCESOS RÁPIDOS" />
             <div className="flex flex-col gap-3">
               {[
-                { to: '/apuestas',         label: 'Apuestas',         sub: 'Cargá tus pronósticos',    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> },
-                { to: '/partidos',         label: 'Fixture',          sub: 'Partidos del Mundial',     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
-                { to: '/mis-predicciones', label: 'Mis Predicciones', sub: 'Historial de pronósticos', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
-                { to: '/ranking',          label: 'Ranking',          sub: 'Tabla de posiciones',      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg> },
+                { to: '/apuestas',         label: 'Apuestas',           sub: 'Cargá tus pronósticos',    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> },
+                { to: '/partidos',         label: 'Fixture',            sub: 'Partidos del Mundial',     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+                { to: '/mis-predicciones', label: 'Mis Predicciones',  sub: 'Historial de pronósticos', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
+                { to: '/ranking',          label: 'Ranking',            sub: 'Tabla de posiciones',      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg> },
+                { to: '/manual',           label: 'Manual de Usuario',  sub: 'Guía para participantes',  icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> },
               ].map(({ to, label, sub, icon }) => (
                 <Link key={to} to={to}
                   className="flex items-center gap-3 p-3.5 rounded-xl transition-all group"
@@ -355,7 +537,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ✅ MODAL DE PREDICCIONES */}
       {selectedBet && (
         <PredictModal
           bet={selectedBet}
